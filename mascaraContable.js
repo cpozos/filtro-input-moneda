@@ -3,7 +3,20 @@ var MASCARA_CONTABLE = (function(){
     var _keyPressedCode;
     var _datoIngresadoValido = false;
 
-    function setMascaraContabilidad(idElemento, funcionCallBack, valorInicial){
+    /**
+    * Callback que recibe el valor después del proceso realizado por la máscara.
+    *
+    * @callback funcionPostFormato
+    * @param {string} valorPostFormato - Valor posterior al proceso de formato.
+    */
+
+    /**
+    * Asigna una máscara a un elemento input para asegurarse que se tenga en todo momento el formato requerido.
+    * @param {string} idInput 
+    * @param {funcionPostFormato} onPostFormato - Función call back que se manda a llamar una vez que la máscara ha finalizado de analizar lo ingresado.
+    * @param {string} valorInicial - Valor incial que se le asigna al input.
+    */
+    function setMascara(idElemento, funcionCallBack, valorInicial){
         var elemento = document.getElementById(idElemento);
         elemento.value = valorInicial || "0.00";
         elemento.oldValue = elemento.value;
@@ -12,10 +25,15 @@ var MASCARA_CONTABLE = (function(){
         _elementos.push({idElemento:idElemento, funcionCallBack: funcionCallBack});
 
         elemento.addEventListener('input',aplicarFormato);
-        elemento.addEventListener('keydown',setCodigoTecla);        
+        elemento.addEventListener('keydown',_setCodigoTecla);        
     }
 
     function aplicarFormato(event){
+
+        // Si las teclas que se presionaron son de navegación, no hace nada.
+        if(_keyPressedCode>36 && _keyPressedCode <40)
+            return;
+
         // Elemento
         var inputElement = event.target;
         var strMonto = inputElement.value;
@@ -26,17 +44,13 @@ var MASCARA_CONTABLE = (function(){
         var posicionCursorDerechaIzquierda = inputElement.value.length - posicionCursor;
         var posicionCursorFinal = null;
 
-        //
+        // Solo se puede realizar una modificación a la vez (se agregó o borro un caractér)
         var numeroModificaciones = inputElement.value.length - aplicarFormatoMoneda(inputElement.oldValue).length;
-        numeroModificaciones = numeroModificaciones < 0 ? numeroModificaciones*-1 : numeroModificaciones;
+        numeroModificaciones = numeroModificaciones < 0 ? numeroModificaciones * -1 : numeroModificaciones;
 
-        // Si no se ingresó un dato válido regresa el valor anterior (no permite el cambio)
+        // Si no se ingresó un dato válido o fueron más de una modificación, regresa al valor anterior (no permite el cambio)
         if(!_datoIngresadoValido ||  numeroModificaciones > 1 ){
-            inputElement.value = aplicarFormatoMoneda(inputElement.oldValue);
-
-            posicionCursorFinal = posicionCursor -1;
-            posicionCursorFinal = posicionCursorFinal < 0 ? 0 : posicionCursorFinal;
-            setCaretPosicion(inputElement.id, posicionCursorFinal);
+            _mantenerValorAnterior(inputElement);
             return;
         }
 
@@ -56,24 +70,24 @@ var MASCARA_CONTABLE = (function(){
             var seModificoParteDecimal = posicionPunto < posicionCursor;
 
             if(seModificoParteDecimal){
-                strMontoSinComas = recorrerPuntoDecimalDerecha(strMontoSinComas);
+                strMontoSinComas = _recorrerPuntoDecimalDerecha(strMontoSinComas);
             }
 
             // Menor a diez millones
             if(!(parseInt(strMontoSinComas)<10000000)){
-                inputElement.value = aplicarFormatoMoneda(inputElement.oldValue);
+                _mantenerValorAnterior(inputElement);
                 return;
             }
         }
         else{
 
-            // Si se borró una coma o un punto
+            // Se determina si se borró una coma o un punto
             var seBorroPunto = !strMonto.includes('.');
             var intNumeroComasAnteriores = obtenerNumeroCaracteresPresentes(aplicarFormatoMoneda(inputElement.oldValue),',');
             var intNumeroComasActuales = obtenerNumeroCaracteresPresentes(strMonto, ',');
             var seBorroComa = intNumeroComasAnteriores>intNumeroComasActuales;
  
-
+            // Si se borró una coma o un punto
             if(seBorroComa || seBorroPunto){
                 
                 // Caracter unión
@@ -81,22 +95,30 @@ var MASCARA_CONTABLE = (function(){
 
                 // Si delete => quitar elemento a la izquierda del cursor
                 if(btnDelete){
-                    strMonto = replaceElementoIzquierda(strMonto,posicionCursor,caracterJoin);
+                    strMonto = _replaceElementoIzquierda(strMonto,posicionCursor,caracterJoin);
                 }
+                // Si suprimir => quitar elemento a la derecha del cursor
                 else{
-                    strMonto = replaceElementoDerecha(strMonto,posicionCursor,caracterJoin);
+                    strMonto = _replaceElementoDerecha(strMonto,posicionCursor,caracterJoin);
                 }
 
                 // Limpia las comas
                 strMontoSinComas = borrarCaracter(strMonto,',');
 
             }
+            // Se borró un número
             else{
-                // Se borró un número
+                
                 var posicionPunto = strMonto.indexOf('.');
                 var seModificoParteDecimal = posicionCursor > posicionPunto;
-            }
 
+                if(seModificoParteDecimal){
+                    strMonto = _recorrerPuntoDecimalIzquierda(strMonto);
+                }
+                
+                // Limpia las comas
+                strMontoSinComas = borrarCaracter(strMonto,',');
+            }
         }
 
         // Asigna valores
@@ -115,17 +137,29 @@ var MASCARA_CONTABLE = (function(){
             posicionCursorFinal = inputElement.value.length - posicionCursorDerechaIzquierda;
             if(btnDelete){
                 posicionCursorFinal = posicionCursorFinal !== 0 ? posicionCursorFinal : 1; 
-            }else{
-                posicionCursorFinal--;
+            }
+            else if(btnSuprimir){
+                posicionCursorFinal = posicionCursorFinal !== 0 ? posicionCursorFinal-1 : 1;
             }
             posicionCursorFinal = posicionCursorFinal < 0 ? 0 : posicionCursorFinal;
         }
+        else {
+            if(seModificoParteDecimal){
+                posicionCursorFinal = inputElement.value.length - posicionCursorDerechaIzquierda ;
+            }
+            else{
+                if(btnDelete){
+                    posicionCursorFinal = posicionCursor > 0 ? posicionCursor : 1;
+                }   
+                else if(btnSuprimir){
+                    posicionCursorFinal = posicionCursor;
+                }
+            }
             
-        else 
-            posicionCursorFinal : posicionCursor;
-
+        }
+            
         // Notifica a la función call back
-        var callback = obtenerFuncionCallBackDelElemento(inputElement.id);
+        var callback = _obtenerFuncionCallBackDelElemento(inputElement.id);
         if(callback){
             callback(strMontoSinComas);
         }
@@ -134,7 +168,7 @@ var MASCARA_CONTABLE = (function(){
         setCaretPosicion(inputElement.id, posicionCursorFinal);
     }
 
-    function setCodigoTecla(event){
+    function _setCodigoTecla(event){
         _keyPressedCode = event.which || event.keyCode;
 
         _datoIngresadoValido =
@@ -143,8 +177,14 @@ var MASCARA_CONTABLE = (function(){
          || _keyPressedCode >=48 && _keyPressedCode<=57 || _keyPressedCode>=96 && _keyPressedCode<=105;
     }
 
+    function _mantenerValorAnterior(elemento){
+        var posicionCursorFinal = elemento.selectionStart - 1;
+        posicionCursorFinal = posicionCursorFinal < 0 ? 0 : posicionCursorFinal;
+        elemento.value = aplicarFormatoMoneda(elemento.oldValue);
+        setCaretPosicion(elemento.id, posicionCursorFinal);
+    }
 
-    function obtenerFuncionCallBackDelElemento(idElemento){
+    function _obtenerFuncionCallBackDelElemento(idElemento){
         for (var i = 0; i < _elementos.length; i++) {
             var elemento = _elementos[i];
             if(idElemento === elemento.idElemento){
@@ -154,25 +194,46 @@ var MASCARA_CONTABLE = (function(){
         return null;
     }
 
-    function borrarCaracter(valor, caracter){
-        if(!caracter || !valor)
-            return valor;
+    function _recorrerPuntoDecimalIzquierda(valor){
+        var strParteIzquierda = valor.split('.')[0];
+        var strParteDerecha = valor.split('.')[1];
+        
+        strParteDerecha = strParteIzquierda[strParteIzquierda.length-1]+strParteDerecha;
+        strParteIzquierda = strParteIzquierda.substring(0,strParteIzquierda.length-1);
 
-        while(valor.includes(caracter)){
-            valor = valor.replace(caracter,'');
-        }
+        strParteIzquierda = strParteIzquierda || '0';
+        strParteDerecha = strParteDerecha || '0';
 
-        return valor;
+        return strParteIzquierda + '.' + strParteDerecha;
     }
 
-    function obtenerNumeroCaracteresPresentes(valor, caracter){
-        var numeroComas = 0;
-        for (var i = 0; i < valor.length; i++) {
-            if(valor[i]!== caracter)
-                continue;
-            numeroComas ++;
-        }
-        return numeroComas;
+    function _recorrerPuntoDecimalDerecha(valor){
+        var strParteIzquierda = valor.split('.')[0];
+        var strParteDerecha = valor.split('.')[1];
+        
+        strParteIzquierda = strParteIzquierda + strParteDerecha[0];
+        strParteDerecha = strParteDerecha.substring(1);
+
+        strParteIzquierda = strParteIzquierda || '0';
+        strParteDerecha = strParteDerecha || '0';
+
+        return strParteIzquierda + '.' + strParteDerecha;
+    }
+
+    function _replaceElementoIzquierda(valor, indice, caracterUnion){
+        caracterUnion = caracterUnion || '';
+        var strPrimeraParte = valor.substring(0,indice);
+        var strSegundaParte = valor.substring(indice,valor.length);
+        
+        return strPrimeraParte.substring(0, strPrimeraParte.length-1) + caracterUnion + strSegundaParte;
+    }
+
+    function _replaceElementoDerecha(valor, indice, caracterUnion){
+        caracterUnion = caracterUnion || '';
+        var strPrimeraParte = valor.substring(0,indice);
+        var strSegundaParte = valor.substring(indice,valor.length);
+        
+        return strPrimeraParte + caracterUnion + strSegundaParte.substring(1,strSegundaParte.length);
     }
 
     function aplicarFormatoMoneda(cantidad, decimales, quitarPrefijos){
@@ -214,7 +275,7 @@ var MASCARA_CONTABLE = (function(){
                 range.select();
             }
             else{
-                if(elem.selectionStart){
+                if(elem.selectionStart || elem.selectionStart === 0){
                     elem.focus();
                     elem.setSelectionRange(caretPos,caretPos);
                 }
@@ -224,50 +285,30 @@ var MASCARA_CONTABLE = (function(){
         }
     }
 
-    function recorrerPuntoDecimalIzquierda(valor){
-        var strParteIzquierda = valor.split('.')[0];
-        var strParteDerecha = valor.split('.')[1];
-        
-        strParteDerecha = strParteIzquierda[strParteIzquierda.length-1]+strParteDerecha;
-        strParteIzquierda = strParteIzquierda.substring(0,strParteIzquierda.length-1);
+    function borrarCaracter(valor, caracter){
+        if(!caracter || !valor)
+            return valor;
 
-        strParteIzquierda = strParteIzquierda || '0';
-        strParteDerecha = strParteDerecha || '0';
+        while(valor.includes(caracter)){
+            valor = valor.replace(caracter,'');
+        }
 
-        return strParteIzquierda + '.' + strParteDerecha;
+        return valor;
     }
 
-    function recorrerPuntoDecimalDerecha(valor){
-        var strParteIzquierda = valor.split('.')[0];
-        var strParteDerecha = valor.split('.')[1];
-        
-        strParteIzquierda = strParteIzquierda + strParteDerecha[0];
-        strParteDerecha = strParteDerecha.substring(1);
-
-        strParteIzquierda = strParteIzquierda || '0';
-        strParteDerecha = strParteDerecha || '0';
-
-        return strParteIzquierda + '.' + strParteDerecha;
+    function obtenerNumeroCaracteresPresentes(valor, caracter){
+        var numeroComas = 0;
+        for (var i = 0; i < valor.length; i++) {
+            if(valor[i]!== caracter)
+                continue;
+            numeroComas ++;
+        }
+        return numeroComas;
     }
 
-    function replaceElementoIzquierda(valor, indice, caracterUnion){
-        caracterUnion = caracterUnion || '';
-        var strPrimeraParte = valor.substring(0,indice);
-        var strSegundaParte = valor.substring(indice,valor.length);
-        
-        return strPrimeraParte.substring(0, strPrimeraParte.length-1) + caracterUnion + strSegundaParte;
-    }
-
-    function replaceElementoDerecha(valor, indice, caracterUnion){
-        caracterUnion = caracterUnion || '';
-        var strPrimeraParte = valor.substring(0,indice);
-        var strSegundaParte = valor.substring(indice,valor.length);
-        
-        return strPrimeraParte + caracterUnion + strSegundaParte.substring(1,strSegundaParte.length);
-    }
 
     return {
-        setMascara: setMascaraContabilidad
+        setMascara: setMascara  
     }
 })();
     
