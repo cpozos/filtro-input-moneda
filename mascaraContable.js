@@ -31,7 +31,7 @@ var MASCARA_CONTABLE = (function(){
     function aplicarFormato(event){
 
         // Si las teclas que se presionaron son de navegación, no hace nada.
-        if(_keyPressedCode>36 && _keyPressedCode <40)
+        if(_keyPressedCode > 36 && _keyPressedCode < 41)
             return;
 
         // Elemento
@@ -59,29 +59,9 @@ var MASCARA_CONTABLE = (function(){
         var btnSuprimir = _keyPressedCode == 46;
         var seBorroUnDato = btnDelete || btnSuprimir;
 
-        //Se ingresó un número
-        if(!seBorroUnDato){
-
-            //Limpiar comas
-            strMontoSinComas = borrarCaracter(strMonto,',');
-
-            // Modificación en la parte decimal o entera
-            var posicionPunto = strMonto.indexOf('.');
-            var seModificoParteDecimal = posicionPunto < posicionCursor;
-
-            if(seModificoParteDecimal){
-                strMontoSinComas = _recorrerPuntoDecimalDerecha(strMontoSinComas);
-            }
-
-            // Menor a diez millones
-            if(!(parseInt(strMontoSinComas)<10000000)){
-                _mantenerValorAnterior(inputElement);
-                return;
-            }
-        }
-        else{
-
-            // Se determina si se borró una coma o un punto
+        
+        if(seBorroUnDato){
+             // Se determina si se borró una coma o un punto
             var seBorroPunto = !strMonto.includes('.');
             var intNumeroComasAnteriores = obtenerNumeroCaracteresPresentes(aplicarFormatoMoneda(inputElement.oldValue),',');
             var intNumeroComasActuales = obtenerNumeroCaracteresPresentes(strMonto, ',');
@@ -120,10 +100,35 @@ var MASCARA_CONTABLE = (function(){
                 strMontoSinComas = borrarCaracter(strMonto,',');
             }
         }
+        else{
+            //Limpiar comas
+            strMontoSinComas = borrarCaracter(strMonto,',');
+
+            // Modificación en la parte decimal o entera
+            var posicionPunto = strMonto.indexOf('.');
+            var seModificoParteDecimal = posicionPunto < posicionCursor;
+
+            if(seModificoParteDecimal){
+                strMontoSinComas = _recorrerPuntoDecimalDerecha(strMontoSinComas);
+            }
+
+            // Menor a diez millones
+            if(!(parseInt(strMontoSinComas)<10000000)){
+                _mantenerValorAnterior(inputElement);
+                return;
+            }
+        }
+
+        // Si no hubo cambio, regresa al valor anterior y no notifica al callback
+        var strMontoFinal = aplicarFormatoMoneda(strMontoSinComas);
+        if(!(strMontoFinal !== aplicarFormatoMoneda(inputElement.oldValue))){
+            _mantenerValorAnterior(inputElement);
+            return;
+        }
 
         // Asigna valores
         inputElement.oldValue = strMontoSinComas;
-        inputElement.value = aplicarFormatoMoneda(strMontoSinComas);
+        inputElement.value = strMontoFinal;
 
         // Posicion
         if(!seBorroUnDato){
@@ -158,7 +163,7 @@ var MASCARA_CONTABLE = (function(){
             
         }
             
-        // Notifica a la función call back
+        // Notifica a la función call back si hubo un cambio
         var callback = _obtenerFuncionCallBackDelElemento(inputElement.id);
         if(callback){
             callback(strMontoSinComas);
@@ -177,6 +182,9 @@ var MASCARA_CONTABLE = (function(){
          || _keyPressedCode >=48 && _keyPressedCode<=57 || _keyPressedCode>=96 && _keyPressedCode<=105;
     }
 
+    /**
+     * Mantiene el valor almacenado en la propiedad oldValue del elemento input, así como la posición del cursor.
+     */
     function _mantenerValorAnterior(elemento){
         var posicionCursorFinal = elemento.selectionStart - 1;
         posicionCursorFinal = posicionCursorFinal < 0 ? 0 : posicionCursorFinal;
@@ -184,6 +192,10 @@ var MASCARA_CONTABLE = (function(){
         setCaretPosicion(elemento.id, posicionCursorFinal);
     }
 
+    /**
+    * Obtiene la función call back que se le asignó al elemento.
+    * @param {string} idElemento - Identificador del elemento
+    */
     function _obtenerFuncionCallBackDelElemento(idElemento){
         for (var i = 0; i < _elementos.length; i++) {
             var elemento = _elementos[i];
@@ -236,6 +248,12 @@ var MASCARA_CONTABLE = (function(){
         return strPrimeraParte + caracterUnion + strSegundaParte.substring(1,strSegundaParte.length);
     }
 
+    /**
+    * Aplica el formato de moneda a una cadena string que representa una cantidad monetaria.
+    * @param {string} cantidad - Cadena string que representa un número que es una cantidad monetaria.
+    * @param {number} decimales - Número entero que representa el número de decimales con los que se está trabajando.
+    * @param {bool} quitarPrefijos - Indica si se quitará el prefijo 'MX$' que proporciona por defecto la función debido a que utiliza Intl.NumberFormat.
+    */
     function aplicarFormatoMoneda(cantidad, decimales, quitarPrefijos){
         decimales = decimales || 2;
         quitarPrefijos = !quitarPrefijos ? true : quitarPrefijos;
@@ -265,6 +283,11 @@ var MASCARA_CONTABLE = (function(){
         return cantidadSinPrefijos;
     }
 
+    /**
+    * Posiciona el cursor o caret dentro de un elemento input en la posición indicada.
+    * @param {string} elemId - Identificador del elemento input.
+    * @param {int} caretPos - Posición en la que se desea colocar al cursor
+    */
     function setCaretPosicion(idElemento,caretPos){
         var elem = document.getElementById(idElemento);
 
@@ -285,6 +308,11 @@ var MASCARA_CONTABLE = (function(){
         }
     }
 
+    /** 
+    * Quita todos los caracteres iguales al parametro caracter que se encuentran en la cadena.
+    * @param {string} valor - Cadena a la que se le quitarán todos los carácteres.
+    * @param {char} caracter - Caracter que se va a eliminar por completo de la cadena
+    */
     function borrarCaracter(valor, caracter){
         if(!caracter || !valor)
             return valor;
@@ -296,6 +324,11 @@ var MASCARA_CONTABLE = (function(){
         return valor;
     }
 
+    /**
+    * Obtiene el número de veces que se encuentra presente un caracter en un string.
+    * @param {string} valor - Cadena a evaluar
+    * @param {char} caracter - Caracter
+    */
     function obtenerNumeroCaracteresPresentes(valor, caracter){
         var numeroComas = 0;
         for (var i = 0; i < valor.length; i++) {
@@ -305,7 +338,6 @@ var MASCARA_CONTABLE = (function(){
         }
         return numeroComas;
     }
-
 
     return {
         setMascara: setMascara  
