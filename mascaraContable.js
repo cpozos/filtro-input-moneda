@@ -22,10 +22,46 @@ var MASCARA_CONTABLE = (function(){
         elemento.oldValue = elemento.value;
 
         // Agregar elemento con su callback a las variables
-        _elementos.push({idElemento:idElemento, funcionCallBack: funcionCallBack});
+        _elementos.push({idElemento:idElemento, funcionCallBack: funcionCallBack, valorInicial: valorInicial});
 
         elemento.addEventListener('input',aplicarFormato);
-        elemento.addEventListener('keydown',_setCodigoTecla);        
+        elemento.addEventListener('keydown',_setCodigoTecla);     
+        elemento.addEventListener('focus', establecerPosicionInicialCursor);
+    }
+
+    function establecerPosicionInicialCursor(e){
+        setCaretPosicion(e.target.id,e.target.value.length);
+    }
+
+    function clearElemento(idElemento, nuevoValorInicial){
+       var elemento = document.getElementById(idElemento);
+       var valorInicial;
+
+
+       if(nuevoValorInicial){
+           valorInicial = nuevoValorInicial;
+       }
+       else{
+            var memoriaElemento = obtenerElemento(idElemento);
+            valorInicial = memoriaElemento ? memoriaElemento.valorInicial : '0.00';
+            valorInicial = valorInicial ? valorInicial : '0.00';
+       }
+
+       elemento.value = valorInicial;
+       elemento.oldValue = valorInicial;
+       setCaretPosicion(idElemento, elemento.length)   ;
+    }
+
+    function obtenerElemento(idElemento){
+        for(var i=0; i<_elementos.length;i++){
+            
+            var elemento = _elementos[i];
+            if(elemento.id !== idElemento)
+                continue;
+            
+            return elemento;
+        }
+        return null;
     }
 
     function aplicarFormato(event){
@@ -50,7 +86,7 @@ var MASCARA_CONTABLE = (function(){
 
         // Si no se ingresó un dato válido o fueron más de una modificación, regresa al valor anterior (no permite el cambio)
         if(!_datoIngresadoValido ||  numeroModificaciones > 1 ){
-            _mantenerValorAnterior(inputElement);
+            _mantenerValorAnterior(inputElement, false);
             return;
         }
 
@@ -122,7 +158,7 @@ var MASCARA_CONTABLE = (function(){
         // Si no hubo cambio, regresa al valor anterior y no notifica al callback
         var strMontoFinal = aplicarFormatoMoneda(strMontoSinComas);
         if(!(strMontoFinal !== aplicarFormatoMoneda(inputElement.oldValue))){
-            _mantenerValorAnterior(inputElement);
+            _mantenerValorAnterior(inputElement, seBorroUnDato);
             return;
         }
 
@@ -131,8 +167,10 @@ var MASCARA_CONTABLE = (function(){
         inputElement.value = strMontoFinal;
 
         // Posicion
+
+        // Se ingresó un dato y fue en los decimales seModificoParteDecimal
         if(!seBorroUnDato){
-            posicionCursorFinal = seModificoParteDecimal ? inputElement.value.length - posicionCursorDerechaIzquierda : posicionCursor;    
+            posicionCursorFinal =  inputElement.value.length - posicionCursorDerechaIzquierda;  
         }
         else if(seBorroPunto){
             posicionCursorFinal = inputElement.value.length - posicionCursorDerechaIzquierda;
@@ -154,10 +192,13 @@ var MASCARA_CONTABLE = (function(){
             }
             else{
                 if(btnDelete){
-                    posicionCursorFinal = posicionCursor > 0 ? posicionCursor : 1;
+                    //posicionCursorFinal = posicionCursor > 0 ? posicionCursor : 1;
+                    posicionCursorFinal = inputElement.value.length - posicionCursorDerechaIzquierda;
+                    posicionCursorFinal = posicionCursorFinal > 0 ? posicionCursorFinal : 1;
                 }   
                 else if(btnSuprimir){
-                    posicionCursorFinal = posicionCursor;
+                    //posicionCursorFinal = posicionCursor;
+                    posicionCursorFinal = inputElement.value.length - posicionCursorDerechaIzquierda;
                 }
             }
             
@@ -185,8 +226,9 @@ var MASCARA_CONTABLE = (function(){
     /**
      * Mantiene el valor almacenado en la propiedad oldValue del elemento input, así como la posición del cursor.
      */
-    function _mantenerValorAnterior(elemento){
-        var posicionCursorFinal = elemento.selectionStart - 1;
+    function _mantenerValorAnterior(elemento, seBorroElemento){
+        var posicionCursorFinal = elemento.selectionStart;
+        posicionCursorFinal = seBorroElemento ? posicionCursorFinal+1 : posicionCursorFinal-1;
         posicionCursorFinal = posicionCursorFinal < 0 ? 0 : posicionCursorFinal;
         elemento.value = aplicarFormatoMoneda(elemento.oldValue);
         setCaretPosicion(elemento.id, posicionCursorFinal);
@@ -340,7 +382,8 @@ var MASCARA_CONTABLE = (function(){
     }
 
     return {
-        setMascara: setMascara  
+        setMascara: setMascara,
+        clearElemento : clearElemento
     }
 })();
     
