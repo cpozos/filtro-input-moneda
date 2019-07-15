@@ -39,17 +39,18 @@ var MASCARA_CONTABLE = (function(){
 
 
        if(nuevoValorInicial){
-           valorInicial = nuevoValorInicial;
+        valorInicial = nuevoValorInicial;
        }
        else{
-            var memoriaElemento = obtenerElemento(idElemento);
-            valorInicial = memoriaElemento ? memoriaElemento.valorInicial : '0.00';
-            valorInicial = valorInicial ? valorInicial : '0.00';
+           //Obtiene el elemento del arreglo de elementos de la 'librería'
+        var memoriaElemento = obtenerElemento(idElemento);
+        valorInicial = memoriaElemento ? memoriaElemento.valorInicial : '0.00';
+        valorInicial = valorInicial ? valorInicial : '0.00';
        }
 
        elemento.value = valorInicial;
        elemento.oldValue = valorInicial;
-       setCaretPosicion(idElemento, elemento.length)   ;
+       setCaretPosicion(idElemento, elemento.value.length);
     }
 
     function obtenerElemento(idElemento){
@@ -192,13 +193,13 @@ var MASCARA_CONTABLE = (function(){
             }
             else{
                 if(btnDelete){
-                    //posicionCursorFinal = posicionCursor > 0 ? posicionCursor : 1;
                     posicionCursorFinal = inputElement.value.length - posicionCursorDerechaIzquierda;
                     posicionCursorFinal = posicionCursorFinal > 0 ? posicionCursorFinal : 1;
                 }   
                 else if(btnSuprimir){
-                    //posicionCursorFinal = posicionCursor;
                     posicionCursorFinal = inputElement.value.length - posicionCursorDerechaIzquierda;
+                    //posicionCursorFinal = posicionCursorFinal < 0 ? 0 : posicionCursorFinal; -> posiciona cursor a la izq 
+                    // en el caso de: |18,000.00 + dos supr = |0.00
                 }
             }
             
